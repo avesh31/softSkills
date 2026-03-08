@@ -1,0 +1,2 @@
+﻿src/app/api/users/[id]/follow/route.ts(32,37): error TS2339: Property 'id' does not exist on type '{ createdAt: Date; followerId: string; followingId: string; }'.
+src/app/profile/[id]/page.tsx(57,37): error TS2339: Property 'userId' does not exist on type 'User'.

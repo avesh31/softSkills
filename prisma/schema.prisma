@@ -1,0 +1,239 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  username     String   @unique
+  email        String   @unique
+  passwordHash String
+  bio          String?
+  avatar       String?
+  department   String?
+  yearOfStudy  Int?
+  reputation   Int      @default(0)
+  role         String   @default("STUDENT") // STUDENT | ADMIN
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  doubts        Doubt[]
+  answers       Answer[]
+  reactions     Reaction[]
+  bookmarks     Bookmark[]
+  notifications Notification[]
+  badges        Badge[]
+  sentShares    Share[]        @relation("sender")
+  receivedShares Share[]       @relation("receiver")
+  hubFollows    HubFollow[]
+  hubRequests   HubRequest[]
+  
+  followers     UserFollow[]   @relation("following")
+  following     UserFollow[]   @relation("follower")
+
+  chatMessages  ChatMessage[]
+  chatReactions ChatReaction[]
+}
+
+model ChatMessage {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  authorId  String
+  hubId     String? // null for General Lounge
+  replyToId String?
+
+  author    User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  hub       Hub?           @relation(fields: [hubId], references: [id], onDelete: SetNull)
+  replyTo   ChatMessage?   @relation("replies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies   ChatMessage[]  @relation("replies")
+  reactions ChatReaction[]
+}
+
+model ChatReaction {
+  id        String   @id @default(cuid())
+  emoji     String
+  createdAt DateTime @default(now())
+
+  userId    String
+  messageId String
+
+  user    User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  message ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId, emoji])
+}
+
+model Badge {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String   // e.g. "Beginner Helper", "Top Solver"
+  icon      String   // emoji or icon name
+  awardedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Hub {
+  id          String  @id @default(cuid())
+  name        String  @unique
+  description String?
+  icon        String?
+  color       String?
+
+  doubts       Doubt[]
+  followers    HubFollow[]
+  chatMessages ChatMessage[]
+}
+
+model Doubt {
+  id          String      @id @default(cuid())
+  title       String
+  description String
+  codeSnippet String?
+  imageUrl    String?
+  status      String      @default("Open") // Open | Solved
+  difficulty  String      @default("Medium") // Easy | Medium | Hard
+  priority    String      @default("Medium") // Low | Medium | High
+  views       Int         @default(0)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  authorId String
+  hubId    String
+
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  hub       Hub        @relation(fields: [hubId], references: [id])
+  answers   Answer[]
+  reactions Reaction[]
+  bookmarks Bookmark[]
+  shares    Share[]
+  tags      DoubtTag[]
+}
+
+model Tag {
+  id     String     @id @default(cuid())
+  name   String     @unique
+  doubts DoubtTag[]
+}
+
+model DoubtTag {
+  doubtId String
+  tagId   String
+
+  doubt Doubt @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  tag   Tag   @relation(fields: [tagId], references: [id])
+
+  @@id([doubtId, tagId])
+}
+
+model Answer {
+  id          String   @id @default(cuid())
+  content     String
+  isBestAnswer Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  doubtId  String
+  authorId String
+
+  doubt     Doubt      @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  author    User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  reactions Reaction[]
+}
+
+model Reaction {
+  id        String   @id @default(cuid())
+  type      String   // "upvote"
+  createdAt DateTime @default(now())
+
+  userId   String
+  doubtId  String?
+  answerId String?
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doubt  Doubt?  @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+  answer Answer? @relation(fields: [answerId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, doubtId, answerId])
+}
+
+model Bookmark {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  userId  String
+  doubtId String
+
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doubt Doubt @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, doubtId])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  message   String
+  isRead    Boolean  @default(false)
+  link      String?
+  type      String   // "answer", "reaction", "share", "best_answer", "system", "mention"
+  createdAt DateTime @default(now())
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Share {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  senderId   String
+  receiverId String
+  doubtId    String
+
+  sender   User  @relation("sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User  @relation("receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+  doubt    Doubt @relation(fields: [doubtId], references: [id], onDelete: Cascade)
+}
+
+model HubFollow {
+  userId    String
+  hubId     String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  hub  Hub  @relation(fields: [hubId], references: [id], onDelete: Cascade)
+
+  @@id([userId, hubId])
+}
+
+model HubRequest {
+  id          String   @id @default(cuid())
+  name        String
+  description String
+  status      String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  createdAt   DateTime @default(now())
+  
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model UserFollow {
+  followerId  String
+  followingId String
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("follower", fields: [followerId], references: [id], onDelete: Cascade)
+  following User @relation("following", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@id([followerId, followingId])
+}
